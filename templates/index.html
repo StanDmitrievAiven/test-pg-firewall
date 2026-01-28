@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PostgreSQL Firewall Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 800px;
+            width: 100%;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .connection-info {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            color: #333;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+        
+        .status-success {
+            background: #10b981;
+            color: white;
+        }
+        
+        .status-blocked {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .status-partial {
+            background: #f59e0b;
+            color: white;
+        }
+        
+        .status-error {
+            background: #6b7280;
+            color: white;
+        }
+        
+        .status-loading {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .test-results {
+            margin-top: 30px;
+        }
+        
+        .test-item {
+            background: #f9fafb;
+            border-left: 4px solid #e5e7eb;
+            padding: 20px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+        }
+        
+        .test-item.success {
+            border-left-color: #10b981;
+            background: #ecfdf5;
+        }
+        
+        .test-item.blocked {
+            border-left-color: #ef4444;
+            background: #fef2f2;
+        }
+        
+        .test-item.error {
+            border-left-color: #f59e0b;
+            background: #fffbeb;
+        }
+        
+        .test-item.skipped {
+            border-left-color: #9ca3af;
+            background: #f3f4f6;
+        }
+        
+        .test-name {
+            font-weight: 600;
+            color: #111;
+            margin-bottom: 8px;
+            font-size: 16px;
+        }
+        
+        .test-message {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+        
+        .test-duration {
+            color: #999;
+            font-size: 12px;
+            font-style: italic;
+        }
+        
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            width: 100%;
+        }
+        
+        button:hover {
+            background: #5568d3;
+        }
+        
+        button:active {
+            transform: scale(0.98);
+        }
+        
+        button:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+        
+        .timestamp {
+            color: #999;
+            font-size: 12px;
+            margin-top: 20px;
+            text-align: center;
+        }
+        
+        .loading-spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 0.8s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔒 PostgreSQL Firewall Test</h1>
+        <p class="subtitle">Test connectivity to PostgreSQL database</p>
+        
+        <div class="connection-info">
+            <strong>Host:</strong> {{ host }}<br>
+            <strong>Port:</strong> {{ port }}
+        </div>
+        
+        <div id="status-container">
+            <div class="status-badge status-loading" id="status-badge" style="display: none;">
+                <span class="loading-spinner"></span>
+                Testing connection...
+            </div>
+        </div>
+        
+        <button id="test-btn" onclick="runTest()">Test Connection</button>
+        
+        <div class="test-results" id="test-results"></div>
+        
+        <div class="timestamp" id="timestamp"></div>
+    </div>
+    
+    <script>
+        const host = '{{ host }}';
+        const port = {{ port }};
+        
+        function runTest() {
+            const btn = document.getElementById('test-btn');
+            const statusBadge = document.getElementById('status-badge');
+            const testResults = document.getElementById('test-results');
+            const timestamp = document.getElementById('timestamp');
+            
+            btn.disabled = true;
+            statusBadge.style.display = 'inline-block';
+            statusBadge.className = 'status-badge status-loading';
+            statusBadge.innerHTML = '<span class="loading-spinner"></span> Testing connection...';
+            testResults.innerHTML = '';
+            timestamp.textContent = '';
+            
+            fetch('/api/check')
+                .then(response => response.json())
+                .then(data => {
+                    btn.disabled = false;
+                    statusBadge.style.display = 'inline-block';
+                    
+                    // Update status badge
+                    statusBadge.className = `status-badge status-${data.overall_status}`;
+                    statusBadge.textContent = getStatusText(data.overall_status);
+                    
+                    // Display test results
+                    testResults.innerHTML = '';
+                    data.tests.forEach(test => {
+                        const testDiv = document.createElement('div');
+                        testDiv.className = `test-item ${test.status}`;
+                        
+                        const nameDiv = document.createElement('div');
+                        nameDiv.className = 'test-name';
+                        nameDiv.textContent = test.name;
+                        
+                        const messageDiv = document.createElement('div');
+                        messageDiv.className = 'test-message';
+                        messageDiv.textContent = test.message;
+                        
+                        const durationDiv = document.createElement('div');
+                        durationDiv.className = 'test-duration';
+                        if (test.duration_ms > 0) {
+                            durationDiv.textContent = `Duration: ${test.duration_ms}ms`;
+                        }
+                        
+                        testDiv.appendChild(nameDiv);
+                        testDiv.appendChild(messageDiv);
+                        if (test.duration_ms > 0) {
+                            testDiv.appendChild(durationDiv);
+                        }
+                        
+                        testResults.appendChild(testDiv);
+                    });
+                    
+                    timestamp.textContent = `Last checked: ${new Date(data.timestamp).toLocaleString()}`;
+                })
+                .catch(error => {
+                    btn.disabled = false;
+                    statusBadge.style.display = 'inline-block';
+                    statusBadge.className = 'status-badge status-error';
+                    statusBadge.textContent = 'Error';
+                    testResults.innerHTML = `
+                        <div class="test-item error">
+                            <div class="test-name">Connection Test Failed</div>
+                            <div class="test-message">${error.message}</div>
+                        </div>
+                    `;
+                });
+        }
+        
+        function getStatusText(status) {
+            const statusMap = {
+                'success': '✅ Connection Successful',
+                'blocked': '🚫 Blocked by Firewall',
+                'partial': '⚠️ Partial Connection',
+                'error': '❌ Error'
+            };
+            return statusMap[status] || 'Unknown';
+        }
+        
+        // Auto-run test on page load
+        window.addEventListener('load', () => {
+            runTest();
+        });
+    </script>
+</body>
+</html>
