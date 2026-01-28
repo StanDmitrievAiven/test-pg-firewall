@@ -4,6 +4,7 @@ A simple web application to test PostgreSQL database connectivity and detect fir
 
 ## Features
 
+- **Interactive UI**: Enter PostgreSQL credentials directly in the web interface
 - **TCP Socket Test**: Checks if the PostgreSQL port is reachable
 - **PostgreSQL Authentication Test**: Attempts to connect and authenticate with the database
 - **Real-time Status**: Shows connection status with visual indicators
@@ -31,7 +32,9 @@ docker run -p 5000:5000 \
 
 3. Open your browser and navigate to `http://localhost:5000`
 
-### Environment Variables
+4. Enter your PostgreSQL credentials in the form and click "Test Connection"
+
+### Environment Variables (Optional - defaults are pre-filled in the UI)
 
 - `PG_HOST`: PostgreSQL host (default: `pg-1e8c0fd-stan-dmitriev-test.h.aivencloud.com`)
 - `PG_PORT`: PostgreSQL port (default: `19030`)

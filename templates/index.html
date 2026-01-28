@@ -42,14 +42,41 @@
             font-size: 14px;
         }
         
-        .connection-info {
-            background: #f5f5f5;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 30px;
-            font-family: 'Courier New', monospace;
-            font-size: 13px;
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 6px;
             color: #333;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        
+        input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+            font-family: inherit;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        input[type="password"] {
+            font-family: 'Courier New', monospace;
         }
         
         .status-badge {
@@ -148,6 +175,7 @@
             cursor: pointer;
             transition: background 0.2s;
             width: 100%;
+            margin-top: 10px;
         }
         
         button:hover {
@@ -185,6 +213,22 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+        
+        .error-message {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #991b1b;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        
+        @media (max-width: 600px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
@@ -192,10 +236,40 @@
         <h1>🔒 PostgreSQL Firewall Test</h1>
         <p class="subtitle">Test connectivity to PostgreSQL database</p>
         
-        <div class="connection-info">
-            <strong>Host:</strong> {{ host }}<br>
-            <strong>Port:</strong> {{ port }}
-        </div>
+        <form id="connection-form" onsubmit="event.preventDefault(); runTest();">
+            <div class="form-group">
+                <label for="host">Host *</label>
+                <input type="text" id="host" name="host" value="{{ default_host }}" required>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="port">Port *</label>
+                    <input type="number" id="port" name="port" value="{{ default_port }}" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="database">Database</label>
+                    <input type="text" id="database" name="database" value="{{ default_database }}">
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="user">User *</label>
+                    <input type="text" id="user" name="user" value="{{ default_user }}" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" placeholder="Enter password">
+                </div>
+            </div>
+            
+            <button type="submit" id="test-btn">Test Connection</button>
+        </form>
+        
+        <div id="error-container"></div>
         
         <div id="status-container">
             <div class="status-badge status-loading" id="status-badge" style="display: none;">
@@ -204,22 +278,34 @@
             </div>
         </div>
         
-        <button id="test-btn" onclick="runTest()">Test Connection</button>
-        
         <div class="test-results" id="test-results"></div>
         
         <div class="timestamp" id="timestamp"></div>
     </div>
     
     <script>
-        const host = '{{ host }}';
-        const port = {{ port }};
-        
         function runTest() {
             const btn = document.getElementById('test-btn');
             const statusBadge = document.getElementById('status-badge');
             const testResults = document.getElementById('test-results');
             const timestamp = document.getElementById('timestamp');
+            const errorContainer = document.getElementById('error-container');
+            
+            // Get form values
+            const host = document.getElementById('host').value.trim();
+            const port = document.getElementById('port').value.trim();
+            const database = document.getElementById('database').value.trim();
+            const user = document.getElementById('user').value.trim();
+            const password = document.getElementById('password').value;
+            
+            // Validate required fields
+            if (!host || !port || !user) {
+                errorContainer.innerHTML = '<div class="error-message">Please fill in all required fields (Host, Port, User)</div>';
+                return;
+            }
+            
+            // Clear previous errors
+            errorContainer.innerHTML = '';
             
             btn.disabled = true;
             statusBadge.style.display = 'inline-block';
@@ -228,8 +314,28 @@
             testResults.innerHTML = '';
             timestamp.textContent = '';
             
-            fetch('/api/check')
-                .then(response => response.json())
+            // Prepare request data
+            const requestData = {
+                host: host,
+                port: parseInt(port),
+                database: database || 'defaultdb',
+                user: user,
+                password: password
+            };
+            
+            fetch('/api/check', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestData)
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(err => Promise.reject(err));
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     btn.disabled = false;
                     statusBadge.style.display = 'inline-block';
@@ -274,10 +380,14 @@
                     statusBadge.style.display = 'inline-block';
                     statusBadge.className = 'status-badge status-error';
                     statusBadge.textContent = 'Error';
+                    
+                    const errorMsg = error.error || error.message || 'Unknown error occurred';
+                    errorContainer.innerHTML = `<div class="error-message">${errorMsg}</div>`;
+                    
                     testResults.innerHTML = `
                         <div class="test-item error">
                             <div class="test-name">Connection Test Failed</div>
-                            <div class="test-message">${error.message}</div>
+                            <div class="test-message">${errorMsg}</div>
                         </div>
                     `;
                 });
@@ -292,11 +402,6 @@
             };
             return statusMap[status] || 'Unknown';
         }
-        
-        // Auto-run test on page load
-        window.addEventListener('load', () => {
-            runTest();
-        });
     </script>
 </body>
 </html>
